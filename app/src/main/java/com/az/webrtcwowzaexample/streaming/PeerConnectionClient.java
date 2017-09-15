@@ -23,6 +23,7 @@ import org.webrtc.VideoCapturer;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
+import org.webrtc.voiceengine.WebRtcAudioManager;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
 import java.util.ArrayList;
@@ -88,6 +89,10 @@ public class PeerConnectionClient {
         this.isInitiator = isInitiator;
         TAG += " " + (isInitiator ? "INITIATOR:" : "");
         executor = Executors.newSingleThreadExecutor();
+    }
+
+    public static PeerConnectionClient create(boolean isInitiator){
+        return new PeerConnectionClient(isInitiator);
     }
 
     public void setPeerConnectionFactoryOptions(PeerConnectionFactory.Options options) {
@@ -201,12 +206,12 @@ public class PeerConnectionClient {
             audioSource.dispose();
             audioSource = null;
         }
-        Log.d(TAG, "Stopping capture.");
+        Log.d(TAG, "Stopping capturer.");
         if (videoCapturer != null) {
             try {
                 videoCapturer.stopCapture();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+
             }
             videoCapturerStopped = true;
             videoCapturer.dispose();
@@ -272,6 +277,7 @@ public class PeerConnectionClient {
 
     private void createPeerConnectionFactoryInternal(Context context) {
         Log.d(TAG, "createPeerConnectionFactoryInternal");
+        isError = false;
         if (peerConnectionParameters.disableBuiltInAEC) {
             Log.d(TAG, "Disable built-in AEC even if device supports it");
             WebRtcAudioUtils.setWebRtcBasedAcousticEchoCanceler(true);
@@ -285,6 +291,14 @@ public class PeerConnectionClient {
         } else {
             Log.d(TAG, "Enable built-in AGC if device supports it");
             WebRtcAudioUtils.setWebRtcBasedAutomaticGainControl(false);
+        }
+        // Enable/disable OpenSL ES playback.
+        if (!peerConnectionParameters.useOpenSLES) {
+            Log.d(TAG, "Disable OpenSL ES audio even if device supports it");
+            WebRtcAudioManager.setBlacklistDeviceForOpenSLESUsage(true /* enable */);
+        } else {
+            Log.d(TAG, "Allow OpenSL ES audio if device supports it");
+            WebRtcAudioManager.setBlacklistDeviceForOpenSLESUsage(false);
         }
 
 
@@ -363,16 +377,16 @@ public class PeerConnectionClient {
         // Create audio constraints.
         audioConstraints = new MediaConstraints();
 
-        if (!peerConnectionParameters.noAudioProcessing) {
-            Log.d(TAG, "Enabling audio processing");
+        if (peerConnectionParameters.noAudioProcessing) {
+            Log.d(TAG, "Disabling audio processing");
             audioConstraints.mandatory.add(
-                    new MediaConstraints.KeyValuePair(AUDIO_ECHO_CANCELLATION_CONSTRAINT, "true"));
+                    new MediaConstraints.KeyValuePair(AUDIO_ECHO_CANCELLATION_CONSTRAINT, "false"));
             audioConstraints.mandatory.add(
-                    new MediaConstraints.KeyValuePair(AUDIO_AUTO_GAIN_CONTROL_CONSTRAINT, "true"));
+                    new MediaConstraints.KeyValuePair(AUDIO_AUTO_GAIN_CONTROL_CONSTRAINT, "false"));
             audioConstraints.mandatory.add(
-                    new MediaConstraints.KeyValuePair(AUDIO_HIGH_PASS_FILTER_CONSTRAINT, "true"));
+                    new MediaConstraints.KeyValuePair(AUDIO_HIGH_PASS_FILTER_CONSTRAINT, "false"));
             audioConstraints.mandatory.add(
-                    new MediaConstraints.KeyValuePair(AUDIO_NOISE_SUPPRESSION_CONSTRAINT, "true"));
+                    new MediaConstraints.KeyValuePair(AUDIO_NOISE_SUPPRESSION_CONSTRAINT, "false"));
         }
         if (peerConnectionParameters.enableLevelControl) {
             Log.d(TAG, "Enabling level control");

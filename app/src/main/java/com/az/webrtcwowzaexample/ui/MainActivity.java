@@ -10,6 +10,7 @@ import android.widget.Toast;
 import com.az.webrtcwowzaexample.R;
 import com.az.webrtcwowzaexample.common.Constants;
 import com.az.webrtcwowzaexample.common.PrefManager;
+import com.az.webrtcwowzaexample.common.RTCAudioManager;
 import com.az.webrtcwowzaexample.common.UnhandledExceptionHandler;
 import com.az.webrtcwowzaexample.models.IceCandidateModel;
 import com.az.webrtcwowzaexample.network.SocketHelper;
@@ -19,6 +20,7 @@ import com.az.webrtcwowzaexample.streaming.PeerConnectionEvents;
 import com.az.webrtcwowzaexample.streaming.PeerConnectionParameters;
 
 import org.webrtc.Camera1Enumerator;
+import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
@@ -41,12 +43,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     SocketHelper localSocketHelper;
     SocketHelper remoteSocketHelper;
     EglBase eglBase;
+    RTCAudioManager audioManager;
 
     SurfaceViewRenderer localRenderer;
     SurfaceViewRenderer remoteRenderer;
     EditText remoteStreamNameEditText;
     EditText localStreamNameEditText;
-    Toast logToast;
     private VideoCapturer videoCapturer;
 
     PeerConnectionEvents localPeerConnectionEvents = new PeerConnectionEvents() {
@@ -56,7 +58,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 @Override
                 public void run() {
                     if (localSocketHelper != null) {
-                        logAndToast("localPeerConnectionEvents onLocalDescription " + sdp.type);
+                        log("localPeerConnectionEvents onLocalDescription " + sdp.type);
                         String streamName = localStreamNameEditText.getText().toString();
                         localSocketHelper.sendOfferSdp(streamName, sdp);
                     }
@@ -102,7 +104,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     PeerConnectionEvents remotePeerConnectionEvents = new PeerConnectionEvents() {
         @Override
         public void onLocalDescription(SessionDescription sdp) {
-            logAndToast("remotePeerConnectionEvents onLocalDescription " + sdp.type);
+            log("remotePeerConnectionEvents onLocalDescription " + sdp.type);
             remoteSocketHelper.sendPlayResponse(sdp);
         }
 
@@ -155,13 +157,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         public void onConnectionEstablished() {
-            logAndToast("localSignalingEvents onConnectionEstablished");
+            log("localSignalingEvents onConnectionEstablished");
 //            remoteSocketHelper.closeWebSocket();
         }
 
         @Override
         public void onIceCandidatesAdded(final List<IceCandidateModel> iceCandidates) {
-            logAndToast("localSignalingEvents onIceCandidatesAdded: " + iceCandidates.size());
+            log("localSignalingEvents onIceCandidatesAdded: " + iceCandidates.size());
             localPeerConnectionClient.setIceCandidates(iceCandidates);
         }
 
@@ -171,18 +173,27 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 @Override
                 public void run() {
                     if (localPeerConnectionClient == null) {
-                        Log.v(TAG, "Received remote SDP for non-initilized peer connection.");
+                        log("Received remote SDP for non-initilized peer connection.");
                         return;
                     }
-                    logAndToast("localSignalingEvents onRemoteDescription " + sdp.type);
+                    log("localSignalingEvents onRemoteDescription " + sdp.type);
                     localPeerConnectionClient.setRemoteDescription(sdp);
                 }
             });
         }
 
         private void onConnectedInternal() {
-            logAndToast("localSignalingEvents onConnectedInternal");
+            log("localSignalingEvents onConnectedInternal");
+//            if (isCamera2Supported()) {
+//                Logging.d(TAG, "Creating capturer using camera2 API.");
+//                videoCapturer = createVideoCapturer(new Camera2Enumerator(getApplicationContext()));
+//            } else {
+            Logging.d(TAG, "Creating capturer using camera1 API.");
             videoCapturer = createVideoCapturer(new Camera1Enumerator(false));
+//            }
+            if (videoCapturer == null) {
+                log("Failed to open camera");
+            }
             localPeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localRenderer,
                     remoteRenderer, videoCapturer);
 
@@ -201,13 +212,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         public void onConnectionEstablished() {
-            logAndToast("remoteSignalingEvents onConnectionEstablished");
+            log("remoteSignalingEvents onConnectionEstablished");
 //            remoteSocketHelper.closeWebSocket();
         }
 
         @Override
         public void onIceCandidatesAdded(final List<IceCandidateModel> iceCandidates) {
-            logAndToast("remoteSignalingEvents onIceCandidatesAdded: " + iceCandidates.size());
+            log("remoteSignalingEvents onIceCandidatesAdded: " + iceCandidates.size());
             remotePeerConnectionClient.setIceCandidates(iceCandidates);
             remotePeerConnectionClient.drainCandidates();
         }
@@ -218,10 +229,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 @Override
                 public void run() {
                     if (remotePeerConnectionClient == null) {
-                        Log.v(TAG, "Received remote SDP for non-initilized peer connection.");
+                        log("Received remote SDP for non-initilized peer connection.");
                         return;
                     }
-                    logAndToast("remoteSignalingEvents onRemoteDescription " + spd.type);
+                    log("remoteSignalingEvents onRemoteDescription " + spd.type);
                     remotePeerConnectionClient.setRemoteDescription(spd);
                     remotePeerConnectionClient.createAnswer();
                 }
@@ -229,9 +240,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         private void onConnectedInternal() {
-            logAndToast("remoteSignalingEvents onConnectedInternal");
+            log("remoteSignalingEvents onConnectedInternal");
             remotePeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localRenderer,
-                    remoteRenderer, videoCapturer);
+                    remoteRenderer, null);
         }
     };
 
@@ -261,12 +272,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     protected void onDestroy() {
-        Thread.setDefaultUncaughtExceptionHandler(null);
+//        Thread.setDefaultUncaughtExceptionHandler(null);
         disconnect();
-        if (logToast != null) {
-            logToast.cancel();
-        }
-
         eglBase.release();
         super.onDestroy();
     }
@@ -320,60 +327,77 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         findViewById(R.id.connect_local).setOnClickListener(this);
         findViewById(R.id.connect_remote).setOnClickListener(this);
-        logAndToast("initViews done");
+        log("initViews done");
     }
 
     private void initVars() {
-        Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
+//        Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
         eglBase = EglBase.create();
         // Create peer connection factory.
 
-        localPeerConnectionClient = new PeerConnectionClient(true);
-        remotePeerConnectionClient = new PeerConnectionClient(false);
+        localPeerConnectionClient = PeerConnectionClient.create(true);
+        remotePeerConnectionClient = PeerConnectionClient.create(false);
 
-        peerConnectionParameters = new PeerConnectionParameters(320, 240, 30, 1700, Constants.VIDEO_CODEC_VP8, true, 32,
-                Constants.AUDIO_CODEC_OPUS, false, false, false, true);
+        peerConnectionParameters = new PeerConnectionParameters(320, 240, 30, 1700,
+                Constants.VIDEO_CODEC_VP8, true, 32,
+                Constants.AUDIO_CODEC_OPUS,
+                false, false, false, false, false);
+
         PeerConnectionFactory.initializeAndroidGlobals(getApplicationContext(), peerConnectionParameters.videoCodecHwAcceleration);
 
         PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
         localPeerConnectionClient.setPeerConnectionFactoryOptions(options);
         remotePeerConnectionClient.setPeerConnectionFactoryOptions(options);
 
-        logAndToast("createPeerConnectionFactory");
+        log("createPeerConnectionFactory");
         localPeerConnectionClient.createPeerConnectionFactory(getApplicationContext(), peerConnectionParameters, localPeerConnectionEvents);
         remotePeerConnectionClient.createPeerConnectionFactory(getApplicationContext(), peerConnectionParameters, remotePeerConnectionEvents);
 
         localSocketHelper = new SocketHelper(localSignalingEvents, "socket_local");
         remoteSocketHelper = new SocketHelper(remoteSignalingEvents, "socket_remote");
 
-
+        audioManager = RTCAudioManager.create(this);
+        audioManager.start();
     }
 
     private void disconnect() {
-//        localSocketHelper.closeWebSocket();
+        localSocketHelper.closeWebSocket();
         remoteSocketHelper.closeWebSocket();
 
         if (localPeerConnectionClient != null) {
             localPeerConnectionClient.close();
+            localPeerConnectionClient = null;
         }
         if (remotePeerConnectionClient != null) {
             remotePeerConnectionClient.close();
+            remotePeerConnectionClient = null;
+        }
+        if (localRenderer != null) {
+            localRenderer.release();
+            localRenderer = null;
+        }
+        if (remoteRenderer != null) {
+            remoteRenderer.release();
+            remoteRenderer = null;
+        }
+        if (audioManager != null) {
+            audioManager.stop();
+            audioManager = null;
         }
     }
 
-    private void logAndToast(String msg) {
+    private void log(String msg) {
         Log.d(TAG, msg);
-//        if (logToast != null) {
-//            logToast.cancel();
-//        }
-//        logToast = Toast.makeText(this, msg, Toast.LENGTH_SHORT);
-//        logToast.show();
+    }
+
+    private boolean isCamera2Supported() {
+        return Camera2Enumerator.isSupported(this);
     }
 
     private VideoCapturer createVideoCapturer(CameraEnumerator enumerator) {
         final String[] deviceNames = enumerator.getDeviceNames();
         // First, try to find front facing camera
-        Logging.d(TAG, "Looking for front facing cameras.");
+        log("Looking for front facing cameras.");
         for (String deviceName : deviceNames) {
             if (enumerator.isFrontFacing(deviceName)) {
                 Logging.d(TAG, "Creating front facing camera capturer.");
@@ -386,7 +410,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         // Front facing camera not found, try something else
-        Logging.d(TAG, "Looking for other cameras.");
+        log("Looking for other cameras.");
         for (String deviceName : deviceNames) {
             if (!enumerator.isFrontFacing(deviceName)) {
                 Logging.d(TAG, "Creating other camera capturer.");
@@ -400,6 +424,4 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         return null;
     }
-
-
 }

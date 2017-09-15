@@ -17,11 +17,13 @@ public class PeerConnectionParameters {
     public final boolean disableBuiltInAEC;
     public final boolean disableBuiltInAGC;
     public final boolean noAudioProcessing;
+    public final boolean useOpenSLES;
+
 
     public PeerConnectionParameters(int videoWidth, int videoHeight, int videoFps, int videoMaxBitrate,
                                     String videoCodec, boolean videoCodecHwAcceleration, int audioStartBitrate,
                                     String audioCodec, boolean enableLevelControl, boolean disableBuiltInAEC,
-                                    boolean disableBuiltInAGC, boolean noAudioProcessing) {
+                                    boolean disableBuiltInAGC, boolean noAudioProcessing, boolean useOpenSLES) {
         this.videoWidth = videoWidth;
         this.videoHeight = videoHeight;
         this.videoFps = videoFps;
@@ -34,5 +36,6 @@ public class PeerConnectionParameters {
         this.disableBuiltInAEC = disableBuiltInAEC;
         this.disableBuiltInAGC = disableBuiltInAGC;
         this.noAudioProcessing = noAudioProcessing;
+        this.useOpenSLES = useOpenSLES;
     }
 }
