@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:tools="http://schemas.android.com/tools"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                tools:context="com.az.webrtcwowzaexample.ui.MainActivity">
+
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/local_renderer"
+        android:layout_width="180dp"
+        android:layout_height="135dp"/>
+
+    <org.webrtc.SurfaceViewRenderer
+        android:id="@+id/remote_renderer"
+        android:layout_width="180dp"
+        android:layout_height="135dp"
+        android:layout_alignParentEnd="true"/>
+
+    <Button
+        android:id="@+id/connect_remote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignEnd="@+id/center"
+        android:layout_below="@+id/remote_renderer"
+        android:text="Connect remote"/>
+
+    <View
+        android:id="@+id/center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"/>
+
+    <Button
+        android:id="@+id/connect_local"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignStart="@+id/center"
+        android:layout_below="@+id/local_renderer"
+        android:text="Connect local"/>
+
+    <EditText
+        android:id="@+id/remote_stream_name"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_below="@+id/connect_remote"
+        android:text="t_30068"/>
+
+    <EditText
+        android:id="@+id/local_stream_name"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/connect_local"
+        android:text="t_30068"/>
+
+</RelativeLayout>
