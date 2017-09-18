@@ -1,9 +1,15 @@
 package com.az.webrtcwowzaexample.ui;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -11,13 +17,13 @@ import com.az.webrtcwowzaexample.R;
 import com.az.webrtcwowzaexample.common.Constants;
 import com.az.webrtcwowzaexample.common.PrefManager;
 import com.az.webrtcwowzaexample.common.RTCAudioManager;
-import com.az.webrtcwowzaexample.common.UnhandledExceptionHandler;
 import com.az.webrtcwowzaexample.models.IceCandidateModel;
 import com.az.webrtcwowzaexample.network.SocketHelper;
 import com.az.webrtcwowzaexample.network.SocketHelper.SignalingEvents;
 import com.az.webrtcwowzaexample.streaming.PeerConnectionClient;
 import com.az.webrtcwowzaexample.streaming.PeerConnectionEvents;
 import com.az.webrtcwowzaexample.streaming.PeerConnectionParameters;
+import com.az.webrtcwowzaexample.streaming.ProxyRenderer;
 
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
@@ -37,6 +43,9 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "APP_RTC";
 
+    // List of mandatory application permissions.
+    private static final String[] MANDATORY_PERMISSIONS = {Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.INTERNET};
+
     PeerConnectionClient localPeerConnectionClient;
     PeerConnectionClient remotePeerConnectionClient;
     PeerConnectionParameters peerConnectionParameters;
@@ -45,11 +54,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     EglBase eglBase;
     RTCAudioManager audioManager;
 
-    SurfaceViewRenderer localRenderer;
-    SurfaceViewRenderer remoteRenderer;
     EditText remoteStreamNameEditText;
     EditText localStreamNameEditText;
     private VideoCapturer videoCapturer;
+
+
+    ProxyRenderer localProxyRender = new ProxyRenderer("local");
+    ProxyRenderer remoteProxyRender = new ProxyRenderer("remote");
+
+    private SurfaceViewRenderer localRenderer;
+    private SurfaceViewRenderer remoteRenderer;
 
     PeerConnectionEvents localPeerConnectionEvents = new PeerConnectionEvents() {
         @Override
@@ -194,8 +208,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             if (videoCapturer == null) {
                 log("Failed to open camera");
             }
-            localPeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localRenderer,
-                    remoteRenderer, videoCapturer);
+            localPeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localProxyRender,
+                    remoteProxyRender, videoCapturer);
 
         }
     };
@@ -241,16 +255,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         private void onConnectedInternal() {
             log("remoteSignalingEvents onConnectedInternal");
-            remotePeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localRenderer,
-                    remoteRenderer, null);
+            remotePeerConnectionClient.createPeerConnection(eglBase.getEglBaseContext(), localProxyRender,
+                    remoteProxyRender, null);
         }
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         setContentView(R.layout.activity_main);
-        initVars();
+        requestPermissions();
         initViews();
     }
 
@@ -276,6 +297,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         disconnect();
         eglBase.release();
         super.onDestroy();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        boolean isAllPermissionsGranted = true;
+        for (int i = 0; i < grantResults.length; i++) {
+            if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                toast("Permission " + permissions[i] + " not allowed!", true);
+                isAllPermissionsGranted = false;
+            } else {
+                toast("Permission " + permissions[i] + " granted!", false);
+            }
+        }
+        if (isAllPermissionsGranted) {
+            initVars();
+        }
     }
 
     @Override
@@ -320,13 +359,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         localRenderer.init(eglBase.getEglBaseContext(), null);
         localRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         localRenderer.setEnableHardwareScaler(true);
+        localRenderer.setZOrderMediaOverlay(true);
 
         remoteRenderer.init(eglBase.getEglBaseContext(), null);
         remoteRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         remoteRenderer.setEnableHardwareScaler(true);
+        remoteRenderer.setZOrderMediaOverlay(true);
+
+        localProxyRender.setTarget(localRenderer);
+        remoteProxyRender.setTarget(remoteRenderer);
 
         findViewById(R.id.connect_local).setOnClickListener(this);
         findViewById(R.id.connect_remote).setOnClickListener(this);
+
+        localRenderer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (localPeerConnectionClient != null) {
+                    localPeerConnectionClient.switchCamera();
+                }
+            }
+        });
+
         log("initViews done");
     }
 
@@ -364,6 +418,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         localSocketHelper.closeWebSocket();
         remoteSocketHelper.closeWebSocket();
 
+        localProxyRender.setTarget(null);
+        remoteProxyRender.setTarget(null);
+
         if (localPeerConnectionClient != null) {
             localPeerConnectionClient.close();
             localPeerConnectionClient = null;
@@ -380,14 +437,35 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             remoteRenderer.release();
             remoteRenderer = null;
         }
+
         if (audioManager != null) {
             audioManager.stop();
             audioManager = null;
         }
+        finish();
     }
 
     private void log(String msg) {
         Log.d(TAG, msg);
+    }
+
+    private void toast(String s, boolean isLongLength) {
+        Toast.makeText(this, s, isLongLength ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+    }
+
+    private void requestPermissions() {
+        boolean isAllPermissionsGranted = true;
+        // Check for mandatory permissions.
+        for (String permission : MANDATORY_PERMISSIONS) {
+            if (checkCallingOrSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                isAllPermissionsGranted = false;
+                log("Permission " + permission + " is not granted");
+                ActivityCompat.requestPermissions(this, MANDATORY_PERMISSIONS, 1);
+            }
+        }
+        if (isAllPermissionsGranted) {
+            initVars();
+        }
     }
 
     private boolean isCamera2Supported() {

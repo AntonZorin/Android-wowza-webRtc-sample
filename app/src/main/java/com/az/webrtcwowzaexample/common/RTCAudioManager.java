@@ -113,6 +113,7 @@ public class RTCAudioManager {
         }
         state = AudioManagerState.UNINITIALIZED;
         audioManager.setMode(savedAudioMode);
+        audioManager.setSpeakerphoneOn(false);
     }
 
     /**
@@ -123,6 +124,7 @@ public class RTCAudioManager {
         if (wasMuted == on) {
             return;
         }
+
         audioManager.setMicrophoneMute(on);
         audioManager.abandonAudioFocus(audioFocusChangeListener);
     }

@@ -22,11 +22,6 @@ android {
         abortOnError false
     }
 
-    sourceSets.main {
-        jniLibs.srcDir 'libs'
-        jni.srcDirs = [] //disable automatic ndk-build call
-    }
-
     packagingOptions {
         exclude 'META-INF/services/javax.annotation.processing.Processor'
         exclude 'LICENSE.txt'
@@ -51,8 +46,5 @@ dependencies {
 
     compile 'com.squareup.okhttp3:okhttp:3.9.0'
     compile 'com.google.code.gson:gson:2.6.2'
-
-    compile files('libs/audio_device_java.jar')
-    compile files('libs/base_java.jar')
-    compile files('libs/libjingle_peerconnection.jar')
+    compile 'org.webrtc:google-webrtc:1.0.+'
 }

@@ -7,6 +7,7 @@ import com.az.webrtcwowzaexample.models.IceCandidateModel;
 
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
+import org.webrtc.CameraVideoCapturer;
 import org.webrtc.DataChannel;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
@@ -91,7 +92,7 @@ public class PeerConnectionClient {
         executor = Executors.newSingleThreadExecutor();
     }
 
-    public static PeerConnectionClient create(boolean isInitiator){
+    public static PeerConnectionClient create(boolean isInitiator) {
         return new PeerConnectionClient(isInitiator);
     }
 
@@ -130,8 +131,8 @@ public class PeerConnectionClient {
         });
     }
 
-    public void createPeerConnection(final EglBase.Context renderEGLContext, SurfaceViewRenderer localRender,
-                                     SurfaceViewRenderer remoteRender, VideoCapturer videoCapturer) {
+    public void createPeerConnection(final EglBase.Context renderEGLContext, VideoRenderer.Callbacks localRender,
+                                     VideoRenderer.Callbacks remoteRender, VideoCapturer videoCapturer) {
         if (peerConnectionParameters == null) {
             Log.e(TAG, "Creating peer connection without initializing factory.");
             return;
@@ -413,6 +414,29 @@ public class PeerConnectionClient {
                 }
             }
         });
+    }
+
+    public void switchCamera() {
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                switchCameraInternal();
+            }
+        });
+    }
+
+    private void switchCameraInternal() {
+        if (videoCapturer instanceof CameraVideoCapturer) {
+            if (isError || videoCapturer == null) {
+                Log.e(TAG, "Failed to switch camera. Error : " + isError);
+                return; // No video is sent or only one camera is available or error happened.
+            }
+            Log.d(TAG, "Switch camera");
+            CameraVideoCapturer cameraVideoCapturer = (CameraVideoCapturer) videoCapturer;
+            cameraVideoCapturer.switchCamera(null);
+        } else {
+            Log.d(TAG, "Will not switch camera, video caputurer is not a camera");
+        }
     }
 
     private class PCObserver implements PeerConnection.Observer {
