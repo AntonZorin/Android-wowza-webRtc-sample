@@ -16,10 +16,11 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
+import org.webrtc.RtpParameters;
 import org.webrtc.RtpReceiver;
+import org.webrtc.RtpSender;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
-import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoSource;
@@ -49,6 +50,8 @@ public class PeerConnectionClient {
     private static final String AUDIO_LEVEL_CONTROL_CONSTRAINT = "levelControl";
     public static final String VIDEO_TRACK_ID = "ARDAMSv0";
     public static final String AUDIO_TRACK_ID = "ARDAMSa0";
+    public static final String VIDEO_TRACK_TYPE = "video";
+    private static final int BPS_IN_KBPS = 1000;
     //endregion
 
     private boolean isInitiator;
@@ -84,6 +87,7 @@ public class PeerConnectionClient {
     private VideoSource videoSource;
     private AudioSource audioSource;
     private AudioTrack localAudioTrack;
+    private RtpSender localVideoSender;
 
 
     public PeerConnectionClient(boolean isInitiator) {
@@ -188,12 +192,7 @@ public class PeerConnectionClient {
     }
 
     public void close() {
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                closeInternal();
-            }
-        });
+        closeInternal();
     }
 
     private void closeInternal() {
@@ -330,9 +329,23 @@ public class PeerConnectionClient {
             mediaStream.addTrack(createAudioTrack());
             Log.d(TAG, "peerConnection.addStream");
             peerConnection.addStream(mediaStream);
+            findVideoSender();
         }
 
         Log.d(TAG, "PCConstraints: " + sdpMediaConstraints.toString());
+        Log.d(TAG, "Peer connection created.");
+    }
+
+    private void findVideoSender() {
+        for (RtpSender sender : peerConnection.getSenders()) {
+            if (sender.track() != null) {
+                String trackType = sender.track().kind();
+                if (trackType.equals(VIDEO_TRACK_TYPE)) {
+                    Log.d(TAG, "Found video sender.");
+                    localVideoSender = sender;
+                }
+            }
+        }
     }
 
     private AudioTrack createAudioTrack() {
@@ -350,7 +363,7 @@ public class PeerConnectionClient {
         }
         Log.d(TAG, "factory.createVideoSource");
         videoSource = factory.createVideoSource(capturer);
-        Log.d(TAG, "capturer.startCapture w:" + videoWidth + " h:" + videoHeight + "fps:" + videoFps);
+        Log.d(TAG, "capturer.startCapture w:" + videoWidth + " h:" + videoHeight + "@fps:" + videoFps);
         capturer.startCapture(videoWidth, videoHeight, videoFps);
         Log.d(TAG, "createVideoTrack " + VIDEO_TRACK_ID + " ");
         VideoTrack localVideoTrack = factory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
@@ -437,6 +450,37 @@ public class PeerConnectionClient {
         } else {
             Log.d(TAG, "Will not switch camera, video caputurer is not a camera");
         }
+    }
+
+    public void setVideoMaxBitrate(final Integer maxBitrateKbps) {
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (peerConnection == null || localVideoSender == null || isError) {
+                    return;
+                }
+                Log.d(TAG, "Requested max video bitrate: " + maxBitrateKbps);
+                if (localVideoSender == null) {
+                    Log.w(TAG, "Sender is not ready.");
+                    return;
+                }
+
+                RtpParameters parameters = localVideoSender.getParameters();
+                if (parameters.encodings.size() == 0) {
+                    Log.w(TAG, "RtpParameters are not ready.");
+                    return;
+                }
+
+                for (RtpParameters.Encoding encoding : parameters.encodings) {
+                    // Null value means no limit.
+                    encoding.maxBitrateBps = maxBitrateKbps == null ? null : maxBitrateKbps * BPS_IN_KBPS;
+                }
+                if (!localVideoSender.setParameters(parameters)) {
+                    Log.e(TAG, "RtpSender.setParameters failed.");
+                }
+                Log.d(TAG, "Configured max video bitrate to: " + maxBitrateKbps);
+            }
+        });
     }
 
     private class PCObserver implements PeerConnection.Observer {

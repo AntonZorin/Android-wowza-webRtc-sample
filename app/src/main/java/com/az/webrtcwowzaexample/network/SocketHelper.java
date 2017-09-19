@@ -146,12 +146,16 @@ public class SocketHelper extends WebSocketListener {
     }
 
     public void sendOfferSdp(String streamName, final SessionDescription localSdp) {
+        //Crunch for wowza to correct screen orientation
+        //String stringToRemove = "a=extmap:4 urn:3gpp:video-orientation";
+        String newDescription = removeVideoOrientationFromSdp(localSdp);
+
         ConnectionRequestModel publishModel = new ConnectionRequestModel();
         publishModel.setDirection("publish");
         publishModel.setCommand("sendOffer");
         Sdp sdp = new Sdp();
         sdp.setType("offer");
-        sdp.setSdp(localSdp.description);
+        sdp.setSdp(newDescription);
         publishModel.setSdp(sdp);
         StreamInfo streamInfo = new StreamInfo();
         streamInfo.setApplicationName("webrtc");
@@ -162,6 +166,18 @@ public class SocketHelper extends WebSocketListener {
         String json = gson.toJson(publishModel);
         output("send sendOfferSdp: " + json);
         ws.send(json);
+    }
+
+    private String removeVideoOrientationFromSdp(SessionDescription localSdp) {
+        String[] strings = localSdp.description.split("\\r?\\n");
+        String stringToRemove = "";
+        for (int i = 0; i < strings.length; i++) {
+            if (strings[i].contains("urn:3gpp:video-orientation")) {
+                stringToRemove = strings[i];
+                break;
+            }
+        }
+        return localSdp.description.replace(stringToRemove, "").trim();
     }
 
     public boolean isActive() {

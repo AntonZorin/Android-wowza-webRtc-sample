@@ -17,6 +17,7 @@ import com.az.webrtcwowzaexample.R;
 import com.az.webrtcwowzaexample.common.Constants;
 import com.az.webrtcwowzaexample.common.PrefManager;
 import com.az.webrtcwowzaexample.common.RTCAudioManager;
+import com.az.webrtcwowzaexample.common.UnhandledExceptionHandler;
 import com.az.webrtcwowzaexample.models.IceCandidateModel;
 import com.az.webrtcwowzaexample.network.SocketHelper;
 import com.az.webrtcwowzaexample.network.SocketHelper.SignalingEvents;
@@ -26,7 +27,6 @@ import com.az.webrtcwowzaexample.streaming.PeerConnectionParameters;
 import com.az.webrtcwowzaexample.streaming.ProxyRenderer;
 
 import org.webrtc.Camera1Enumerator;
-import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
@@ -75,6 +75,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         log("localPeerConnectionEvents onLocalDescription " + sdp.type);
                         String streamName = localStreamNameEditText.getText().toString();
                         localSocketHelper.sendOfferSdp(streamName, sdp);
+                        if (peerConnectionParameters.videoMaxBitrate > 0) {
+                            log("localPeerConnectionClient.setVideoMaxBitrate: " + peerConnectionParameters.videoMaxBitrate);
+                            localPeerConnectionClient.setVideoMaxBitrate(peerConnectionParameters.videoMaxBitrate);
+                        }
                     }
                 }
             });
@@ -198,13 +202,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         private void onConnectedInternal() {
             log("localSignalingEvents onConnectedInternal");
-//            if (isCamera2Supported()) {
-//                Logging.d(TAG, "Creating capturer using camera2 API.");
-//                videoCapturer = createVideoCapturer(new Camera2Enumerator(getApplicationContext()));
-//            } else {
-            Logging.d(TAG, "Creating capturer using camera1 API.");
-            videoCapturer = createVideoCapturer(new Camera1Enumerator(false));
-//            }
+
+                Logging.d(TAG, "Creating capturer using camera1 API.");
+                videoCapturer = createVideoCapturer(new Camera1Enumerator(false));
+
             if (videoCapturer == null) {
                 log("Failed to open camera");
             }
@@ -293,7 +294,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     protected void onDestroy() {
-//        Thread.setDefaultUncaughtExceptionHandler(null);
+        Thread.setDefaultUncaughtExceptionHandler(null);
         disconnect();
         eglBase.release();
         super.onDestroy();
@@ -359,12 +360,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         localRenderer.init(eglBase.getEglBaseContext(), null);
         localRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         localRenderer.setEnableHardwareScaler(true);
-        localRenderer.setZOrderMediaOverlay(true);
 
         remoteRenderer.init(eglBase.getEglBaseContext(), null);
         remoteRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         remoteRenderer.setEnableHardwareScaler(true);
-        remoteRenderer.setZOrderMediaOverlay(true);
 
         localProxyRender.setTarget(localRenderer);
         remoteProxyRender.setTarget(remoteRenderer);
@@ -385,10 +384,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void initVars() {
-//        Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
+        Thread.setDefaultUncaughtExceptionHandler(new UnhandledExceptionHandler(this));
         eglBase = EglBase.create();
-        // Create peer connection factory.
 
+        // Create peer connection factory.
         localPeerConnectionClient = PeerConnectionClient.create(true);
         remotePeerConnectionClient = PeerConnectionClient.create(false);
 
@@ -442,7 +441,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             audioManager.stop();
             audioManager = null;
         }
-        finish();
     }
 
     private void log(String msg) {
@@ -468,9 +466,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    private boolean isCamera2Supported() {
-        return Camera2Enumerator.isSupported(this);
-    }
 
     private VideoCapturer createVideoCapturer(CameraEnumerator enumerator) {
         final String[] deviceNames = enumerator.getDeviceNames();
